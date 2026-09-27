@@ -1,0 +1,25 @@
+{
+  "name": "tun-gaming-simulation-platform",
+  "version": "0.1.0",
+  "description": "TUN Discord Gaming Platform + PnW-style War Simulator (MVP foundation)",
+  "main": "src/index.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "deploy-commands": "node deploy-commands.js",
+    "migrate": "node src/database/migrate.js",
+    "test": "node --test test/*.test.js"
+  },
+  "dependencies": {
+    "chess.js": "^1.0.0",
+    "discord.js": "^14.15.3",
+    "dotenv": "^16.4.5",
+    "sequelize": "^6.37.3",
+    "sqlite3": "^5.1.7",
+    "uuid": "^9.0.1"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
