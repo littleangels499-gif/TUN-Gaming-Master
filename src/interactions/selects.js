@@ -5,21 +5,53 @@ const chessGame = require('../games/chess/chessGame');
 const lotteryManager = require('../games/lottery/lotteryManager');
 const { LotteryTicket } = require('../database/models');
 const { baseEmbed, COLORS, errorEmbed } = require('../utils/embeds');
+const { buildDailyClaimEmbed } = require('../ui/economyUI');
 
 async function handleSelect(interaction) {
-  if (interaction.customId !== 'hub:select') return;
+  if (interaction.customId.startsWith('chess:aisel:')) {
+    await handleChessAiSelect(interaction);
+    return;
+  }
+  if (interaction.customId === 'hub:select') {
+    await handleHubSelect(interaction);
+    return;
+  }
+}
 
+// ── "Play vs AI" difficulty picker (shown privately to the host) ─────────
+async function handleChessAiSelect(interaction) {
+  try {
+    await interaction.deferUpdate();
+  } catch (err) {
+    return; // token already expired, nothing we can do
+  }
+
+  try {
+    const sessionId = Number(interaction.customId.split(':')[2]);
+    const difficulty = interaction.values[0];
+    await sessionService.startVsAI(sessionId, interaction.user.id, difficulty);
+
+    const full = await sessionService.getSessionWithPlayers(sessionId);
+    await dashboardService.updateDashboard(interaction.client, full);
+
+    await interaction.editReply({
+      content: `✅ Game started against the AI (**${difficulty}**). You play White — click **Make Move** on the board.`,
+      components: [],
+    });
+  } catch (err) {
+    await interaction.editReply({ content: `⚠️ ${err.message}`, components: [] }).catch(() => {});
+  }
+}
+
+// ── Gaming Hub menu ──────────────────────────────────────────────────────
+async function handleHubSelect(interaction) {
   const choice = interaction.values[0];
-  const isEphemeralChoice = choice === 'war_simulator' || choice === 'leaderboards';
+  const isEphemeralChoice = ['war_simulator', 'leaderboards', 'daily'].includes(choice);
 
   // Acknowledge within Discord's 3-second window BEFORE doing any DB work.
-  // Everything after this uses editReply, which has a much longer (15 min) budget.
   try {
     await interaction.deferReply(isEphemeralChoice ? { flags: MessageFlags.Ephemeral } : undefined);
   } catch (err) {
-    // The interaction already expired before we could even defer (e.g. a
-    // gateway hiccup delayed delivery). Nothing we can do — there is no
-    // valid token left to respond with, so just stop here quietly.
     return;
   }
 
@@ -45,6 +77,11 @@ async function handleSelect(interaction) {
       const ticketCount = (await LotteryTicket.sum('quantity', { where: { lotteryId: lottery.id } })) || 0;
       const { embeds, components } = dashboardService.renderLottery(lottery, ticketCount);
       await interaction.editReply({ embeds, components });
+      return;
+    }
+
+    if (choice === 'daily') {
+      await interaction.editReply({ embeds: [await buildDailyClaimEmbed(interaction.user)] });
       return;
     }
 

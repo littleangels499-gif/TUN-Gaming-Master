@@ -5,7 +5,8 @@ const warSimulator = require('../simulation/warSimulator');
 const { SimulationWar } = require('../database/models');
 const { errorEmbed, successEmbed, baseEmbed, COLORS } = require('../utils/embeds');
 const { buildWarEmbed, buildWarComponents } = require('../ui/warDashboard');
-const { isTrainingInstructor } = require('../utils/permissions');
+const { isTrainingInstructor, isSimAdmin } = require('../utils/permissions');
+const { recordAudit } = require('../services/auditService');
 const dashboardService = require('../services/dashboardService');
 
 function nationSummaryEmbed(nation) {
@@ -49,9 +50,18 @@ module.exports = {
         .setName('nation')
         .setDescription('Your simulation nation')
         .addSubcommand((sub) =>
-          sub.setName('create').setDescription('Create a Sandbox nation (no PnW link required)').addStringOption((o) => o.setName('name').setDescription('Nation name'))
+          sub
+            .setName('create')
+            .setDescription('Create a Sandbox nation (Sim Admins can create one for another member)')
+            .addStringOption((o) => o.setName('name').setDescription('Nation name'))
+            .addUserOption((o) => o.setName('member').setDescription('(Sim Admin) Create the nation for this member'))
         )
-        .addSubcommand((sub) => sub.setName('view').setDescription('View your simulation nation'))
+        .addSubcommand((sub) =>
+          sub
+            .setName('view')
+            .setDescription('View a simulation nation')
+            .addUserOption((o) => o.setName('member').setDescription('(Sim Admin) View another member\'s nation'))
+        )
     )
 
     .addSubcommandGroup((group) =>
@@ -206,15 +216,56 @@ module.exports = {
       // ── /sim nation create|view ─────────────────────────────────────
       if (group === 'nation' && sub === 'create') {
         const name = interaction.options.getString('name');
-        const nation = await nationService.createSandboxNation(interaction.user.id, { name });
+        const target = interaction.options.getUser('member');
+
+        // Admin path: create a nation on behalf of another member.
+        if (target && target.id !== interaction.user.id) {
+          if (!isSimAdmin(interaction.member)) {
+            await interaction.reply({ embeds: [errorEmbed('Only a Simulation Administrator can create a nation for another member.')], flags: MessageFlags.Ephemeral });
+            return;
+          }
+          if (target.bot) {
+            await interaction.reply({ embeds: [errorEmbed('Bots cannot have simulation nations.')], flags: MessageFlags.Ephemeral });
+            return;
+          }
+          const created = await nationService.createSandboxNation(target.id, {
+            name: name || `${target.username}'s Nation`,
+            leaderName: target.username,
+          });
+          await recordAudit({
+            actorId: interaction.user.id,
+            action: 'nation.admin_create',
+            targetType: 'SimulationNation',
+            targetId: created.id,
+            details: { forUserId: target.id, name: created.name },
+          });
+          await interaction.reply({
+            content: `🛠️ <@${interaction.user.id}> created a simulation nation for <@${target.id}>.`,
+            embeds: [nationSummaryEmbed(created)],
+          });
+          return;
+        }
+
+        const nation = await nationService.createSandboxNation(interaction.user.id, { name, leaderName: interaction.user.username });
         await interaction.reply({ embeds: [nationSummaryEmbed(nation)] });
         return;
       }
 
       if (group === 'nation' && sub === 'view') {
-        const nation = await nationService.getNormalNation(interaction.user.id);
+        const target = interaction.options.getUser('member') || interaction.user;
+        const isSelf = target.id === interaction.user.id;
+
+        if (!isSelf && !isSimAdmin(interaction.member)) {
+          await interaction.reply({ embeds: [errorEmbed("Only a Simulation Administrator can view another member's nation.")], flags: MessageFlags.Ephemeral });
+          return;
+        }
+
+        const nation = await nationService.getNormalNation(target.id);
         if (!nation) {
-          await interaction.reply({ embeds: [errorEmbed('You don\'t have a simulation nation yet. Use `/sim nation create` or `/sim link`.')], flags: MessageFlags.Ephemeral });
+          const msg = isSelf
+            ? "You don't have a simulation nation yet. Use `/sim nation create` or `/sim link`."
+            : `<@${target.id}> has no simulation nation yet. Use \`/sim nation create member:@them\` to make one.`;
+          await interaction.reply({ embeds: [errorEmbed(msg)], flags: MessageFlags.Ephemeral });
           return;
         }
         await interaction.reply({ embeds: [nationSummaryEmbed(nation)] });

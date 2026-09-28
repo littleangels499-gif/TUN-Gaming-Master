@@ -12,7 +12,7 @@ function buildGamingHubEmbed() {
     description: [
       'Choose an activity below, or use the equivalent slash command any time.',
       '',
-      '**Games:** ♟️ Chess • 🎟️ Lottery',
+      '**Games:** ♟️ Chess • 🎟️ Lottery • 🎁 Daily Coins',
       '**Simulation:** ⚔️ War Simulator',
       '**Info:** 🏆 Leaderboards',
       '',
@@ -30,6 +30,7 @@ function buildGamingHubComponents() {
     .addOptions(
       { label: 'Chess', value: 'chess', emoji: '♟️', description: 'Play chess vs a friend or the AI' },
       { label: 'Lottery', value: 'lottery', emoji: '🎟️', description: 'Buy tickets, see the current pool' },
+      { label: 'Daily Coins', value: 'daily', emoji: '🎁', description: 'Claim your free daily coins' },
       { label: 'War Simulator', value: 'war_simulator', emoji: '⚔️', description: 'Manage your simulated nation' },
       { label: 'Leaderboards', value: 'leaderboards', emoji: '🏆', description: 'See top players' },
     );
@@ -40,6 +41,8 @@ function buildGamingHubComponents() {
     new ButtonBuilder().setCustomId('hub:chess').setLabel('Chess').setEmoji('♟️').setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId('hub:lottery').setLabel('Lottery').setEmoji('🎟️').setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId('hub:war').setLabel('War Simulator').setEmoji('⚔️').setStyle(ButtonStyle.Danger),
+    new ButtonBuilder().setCustomId('hub:daily').setLabel('Daily Coins').setEmoji('🎁').setStyle(ButtonStyle.Success),
+    new ButtonBuilder().setCustomId('hub:balance').setLabel('Balance').setEmoji('💰').setStyle(ButtonStyle.Secondary),
   );
 
   return [row1, row2];

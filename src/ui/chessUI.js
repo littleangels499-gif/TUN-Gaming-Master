@@ -40,6 +40,7 @@ function buildChessComponents(session) {
     const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder().setCustomId(`chess:join:${session.id}`).setLabel('Join').setEmoji('➕').setStyle(ButtonStyle.Success),
       new ButtonBuilder().setCustomId(`chess:ready:${session.id}`).setLabel('Ready').setEmoji('✅').setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId(`chess:ai:${session.id}`).setLabel('Play vs AI').setEmoji('🤖').setStyle(ButtonStyle.Secondary),
       new ButtonBuilder().setCustomId(`chess:cancel:${session.id}`).setLabel('Cancel').setEmoji('✖️').setStyle(ButtonStyle.Danger),
     );
     return [row];

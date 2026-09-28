@@ -1,4 +1,4 @@
-const { MessageFlags } = require('discord.js');
+const { MessageFlags, ActionRowBuilder, StringSelectMenuBuilder } = require('discord.js');
 const sessionService = require('../services/sessionService');
 const dashboardService = require('../services/dashboardService');
 const chessGame = require('../games/chess/chessGame');
@@ -9,11 +9,15 @@ const lotteryManager = require('../games/lottery/lotteryManager');
 const warSimulator = require('../simulation/warSimulator');
 const { SimulationWar, SimulationNation, LotteryTicket, SimulationAttack } = require('../database/models');
 const { ensureUser } = require('../utils/economy');
+const { buildDailyClaimEmbed, buildBalanceEmbed } = require('../ui/economyUI');
 
 // Actions that reply ephemerally (only the clicker sees them). Everything
 // else replies publicly. Keep this in sync with the branches below.
 const EPHEMERAL_ACTIONS = new Set([
   'hub:war',
+  'hub:daily',
+  'hub:balance',
+  'chess:ai',
   'chess:join',
   'chess:ready',
   'chess:cancel',
@@ -78,6 +82,16 @@ async function handleButton(interaction) {
 
 // ── Hub ──────────────────────────────────────────────────────────────────
 async function handleHubButton(interaction, action) {
+  if (action === 'daily') {
+    await interaction.editReply({ embeds: [await buildDailyClaimEmbed(interaction.user)] });
+    return;
+  }
+
+  if (action === 'balance') {
+    await interaction.editReply({ embeds: [await buildBalanceEmbed(interaction.user)] });
+    return;
+  }
+
   if (action === 'chess') {
     const session = await sessionService.createSession({
       gameType: 'chess',
@@ -113,6 +127,28 @@ async function handleHubButton(interaction, action) {
 // ── Chess ────────────────────────────────────────────────────────────────
 async function handleChessButton(interaction, action, [gameId]) {
   const id = Number(gameId);
+
+  if (action === 'ai') {
+    const session = await sessionService.getSessionWithPlayers(id);
+    if (!session) throw new Error('Game not found.');
+    if (session.hostId !== interaction.user.id) throw new Error('Only the host can switch this game to play against the AI.');
+    if (session.status !== 'waiting') throw new Error('This game has already started or ended.');
+    if (session.players.length > 1) throw new Error('Another player has already joined this game.');
+
+    const menu = new StringSelectMenuBuilder()
+      .setCustomId(`chess:aisel:${id}`)
+      .setPlaceholder('Choose the AI difficulty...')
+      .addOptions(
+        { label: 'Easy', value: 'easy', emoji: '🟢', description: 'Plays random moves' },
+        { label: 'Medium', value: 'medium', emoji: '🟡', description: 'Mixes smart and random moves' },
+        { label: 'Hard', value: 'hard', emoji: '🔴', description: 'Prefers captures and checks' },
+      );
+    await interaction.editReply({
+      content: '🤖 Pick the AI difficulty. You will play White.',
+      components: [new ActionRowBuilder().addComponents(menu)],
+    });
+    return;
+  }
 
   if (action === 'join') {
     await sessionService.joinSession(id, interaction.user.id);

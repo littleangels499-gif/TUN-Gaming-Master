@@ -1,6 +1,5 @@
 const { SlashCommandBuilder, MessageFlags } = require('discord.js');
-const { ensureUser, getOrCreateBalance, claimDailyReward } = require('../utils/economy');
-const { successEmbed, errorEmbed, baseEmbed, COLORS } = require('../utils/embeds');
+const { buildDailyClaimEmbed } = require('../ui/economyUI');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -8,12 +7,7 @@ module.exports = {
     .setDescription('Claim your daily gaming-currency reward'),
 
   async execute(interaction) {
-    await ensureUser(interaction.user);
-    const result = await claimDailyReward(interaction.user.id);
-    if (!result.claimed) {
-      await interaction.reply({ embeds: [errorEmbed(`You've already claimed today's reward. Try again in ${result.hoursLeft}h.`)], flags: MessageFlags.Ephemeral });
-      return;
-    }
-    await interaction.reply({ embeds: [successEmbed(`You claimed **${result.amount}** coins! New balance: **${result.newBalance}**.`)] });
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+    await interaction.editReply({ embeds: [await buildDailyClaimEmbed(interaction.user)] });
   },
 };

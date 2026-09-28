@@ -11,14 +11,15 @@ async function getNormalNation(userId) {
   });
 }
 
-async function createSandboxNation(userId, { name } = {}) {
+async function createSandboxNation(userId, { name, leaderName } = {}) {
   const existing = await getNormalNation(userId);
-  if (existing) throw new Error('You already have a simulation nation. Use `/sim nation` to view it.');
+  if (existing) throw new Error('A simulation nation already exists for this member. Use `/sim nation view` to see it.');
 
   const nation = await SimulationNation.create({
     userId,
     mode: 'sandbox',
     name: name || 'Unnamed Nation',
+    leaderName: leaderName || null,
     cities: config.simulation.startingCities,
     infrastructureTotal: config.simulation.startingInfraPerCity * config.simulation.startingCities,
     treasury: config.simulation.startingTreasury,

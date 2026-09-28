@@ -104,7 +104,27 @@ async function createRematch(oldSessionId) {
   return rematch;
 }
 
+/** Converts a waiting, host-only game into a solo game against the AI. */
+async function startVsAI(sessionId, userId, difficulty) {
+  if (!['easy', 'medium', 'hard'].includes(difficulty)) throw new Error('Unknown AI difficulty.');
+  const session = await GameSession.findByPk(sessionId, { include: [{ association: 'players' }] });
+  if (!session) throw new Error('Game session not found.');
+  if (session.hostId !== userId) throw new Error('Only the host can switch this game to play against the AI.');
+  if (session.status !== 'waiting') throw new Error('This game has already started or ended.');
+  if (session.players.length > 1) throw new Error('Another player has already joined this game.');
+
+  session.vsAI = true;
+  session.isSolo = true;
+  session.aiDifficulty = difficulty;
+  session.status = 'active';
+  session.turnUserId = userId;
+  await session.save();
+  await GamePlayer.update({ isReady: true }, { where: { sessionId, userId } });
+  return session;
+}
+
 module.exports = {
+  startVsAI,
   createSession,
   joinSession,
   setReady,

@@ -38,7 +38,7 @@ async function handleChessMove(interactionLike, gameId, moveInput) {
 
   const seat = seatOf(session, interactionLike.user.id);
   const isVsAI = session.vsAI;
-  if (seat === null && !isVsAI) {
+  if (seat === null) {
     return reply({ embeds: [errorEmbed('You are not a player in this game.')], ephemeral: true });
   }
 
