@@ -1,8 +1,8 @@
+const { MessageFlags } = require('discord.js');
 const sessionService = require('../services/sessionService');
 const dashboardService = require('../services/dashboardService');
 const chessGame = require('../games/chess/chessGame');
 const { buildMoveModal } = require('../ui/chessUI');
-const { buildGamingHubEmbed, buildGamingHubComponents } = require('../ui/gamingHub');
 const { buildWarEmbed, buildWarComponents } = require('../ui/warDashboard');
 const { errorEmbed, successEmbed, baseEmbed, COLORS } = require('../utils/embeds');
 const lotteryManager = require('../games/lottery/lotteryManager');
@@ -10,20 +10,67 @@ const warSimulator = require('../simulation/warSimulator');
 const { SimulationWar, SimulationNation, LotteryTicket, SimulationAttack } = require('../database/models');
 const { ensureUser } = require('../utils/economy');
 
+// Actions that reply ephemerally (only the clicker sees them). Everything
+// else replies publicly. Keep this in sync with the branches below.
+const EPHEMERAL_ACTIONS = new Set([
+  'hub:war',
+  'chess:join',
+  'chess:ready',
+  'chess:cancel',
+  'chess:resign',
+  'war:details',
+  'war:log',
+]);
+
 async function safeReplyError(interaction, message) {
-  const payload = { embeds: [errorEmbed(message)], ephemeral: true };
-  if (interaction.deferred || interaction.replied) await interaction.followUp(payload);
-  else await interaction.reply(payload);
+  // By the time we reach here the interaction is always already acknowledged
+  // (we defer before dispatching, and the one action that doesn't — chess:move
+  // — has its own try/catch and never calls this). followUp posts a fresh
+  // ephemeral message so we never clobber a dashboard embed that's mid-update.
+  try {
+    await interaction.followUp({ embeds: [errorEmbed(message)], flags: MessageFlags.Ephemeral });
+  } catch (err) {
+    // Token already dead (e.g. it expired before we even got to reply) —
+    // there is nothing further we can do.
+  }
 }
 
 async function handleButton(interaction) {
   const [namespace, action, ...rest] = interaction.customId.split(':');
 
+  // A modal must be the FIRST response to an interaction — deferring first
+  // would make showModal() impossible. Handle this one before anything else.
+  if (namespace === 'chess' && action === 'move') {
+    try {
+      await interaction.showModal(buildMoveModal(Number(rest[0])));
+    } catch (err) {
+      // Interaction token already expired before we could show the modal.
+    }
+    return;
+  }
+
+  const isLotteryBuy = namespace === 'lottery' && action === 'buy';
+  const isEphemeral = EPHEMERAL_ACTIONS.has(`${namespace}:${action}`);
+
   try {
-    if (namespace === 'hub') return handleHubButton(interaction, action);
-    if (namespace === 'chess') return handleChessButton(interaction, action, rest);
-    if (namespace === 'lottery') return handleLotteryButton(interaction, action, rest);
-    if (namespace === 'war') return handleWarButton(interaction, action, rest);
+    if (isLotteryBuy) {
+      // Keeps editing the SAME message in place, matching the old .update() behavior.
+      await interaction.deferUpdate();
+    } else {
+      await interaction.deferReply(isEphemeral ? { flags: MessageFlags.Ephemeral } : undefined);
+    }
+  } catch (err) {
+    // Discord invalidated the token before we could acknowledge (usually a
+    // slow first DB hit or a gateway delay pushing us past the 3s window).
+    // There is no valid interaction left to respond to — nothing more to do.
+    return;
+  }
+
+  try {
+    if (namespace === 'hub') { await handleHubButton(interaction, action); return; }
+    if (namespace === 'chess') { await handleChessButton(interaction, action, rest); return; }
+    if (namespace === 'lottery') { await handleLotteryButton(interaction, action, rest); return; }
+    if (namespace === 'war') { await handleWarButton(interaction, action, rest); return; }
   } catch (err) {
     await safeReplyError(interaction, err.message);
   }
@@ -41,7 +88,7 @@ async function handleHubButton(interaction, action) {
     });
     session.state = { fen: chessGame.newGameFen() };
     await session.save();
-    await interaction.reply({ content: `Chess game #${session.id} created.` });
+    await interaction.editReply({ content: `Chess game #${session.id} created.` });
     const full = await sessionService.getSessionWithPlayers(session.id);
     await dashboardService.postDashboard(interaction.channel, full);
     return;
@@ -51,14 +98,13 @@ async function handleHubButton(interaction, action) {
     const lottery = await lotteryManager.getOrCreateOpenLottery(interaction.guildId);
     const ticketCount = (await LotteryTicket.sum('quantity', { where: { lotteryId: lottery.id } })) || 0;
     const { embeds, components } = dashboardService.renderLottery(lottery, ticketCount);
-    await interaction.reply({ embeds, components });
+    await interaction.editReply({ embeds, components });
     return;
   }
 
   if (action === 'war') {
-    await interaction.reply({
+    await interaction.editReply({
       embeds: [baseEmbed({ title: '⚔️ War Simulator', description: 'Use `/sim nation view` to see your nation, or `/sim link` to import your Politics & War nation.', color: COLORS.primary })],
-      ephemeral: true,
     });
     return;
   }
@@ -72,7 +118,7 @@ async function handleChessButton(interaction, action, [gameId]) {
     await sessionService.joinSession(id, interaction.user.id);
     const full = await sessionService.getSessionWithPlayers(id);
     await dashboardService.updateDashboard(interaction.client, full);
-    await interaction.reply({ embeds: [successEmbed('You joined the game.')], ephemeral: true });
+    await interaction.editReply({ embeds: [successEmbed('You joined the game.')] });
     return;
   }
 
@@ -86,35 +132,30 @@ async function handleChessButton(interaction, action, [gameId]) {
     }
     const reloaded = await sessionService.getSessionWithPlayers(id);
     await dashboardService.updateDashboard(interaction.client, reloaded);
-    await interaction.reply({ embeds: [successEmbed(allReady ? 'Both players ready — game started!' : 'You are marked ready.')], ephemeral: true });
+    await interaction.editReply({ embeds: [successEmbed(allReady ? 'Both players ready — game started!' : 'You are marked ready.')] });
     return;
   }
 
   if (action === 'cancel') {
     const session = await sessionService.getSessionWithPlayers(id);
     if (session.hostId !== interaction.user.id) {
-      return safeReplyError(interaction, 'Only the host can cancel this game.');
+      await interaction.editReply({ embeds: [errorEmbed('Only the host can cancel this game.')] });
+      return;
     }
     session.status = 'cancelled';
     await session.save();
     await dashboardService.updateDashboard(interaction.client, session);
-    await interaction.reply({ embeds: [successEmbed('Game cancelled.')], ephemeral: true });
-    return;
-  }
-
-  if (action === 'move') {
-    const modal = buildMoveModal(id);
-    await interaction.showModal(modal);
+    await interaction.editReply({ embeds: [successEmbed('Game cancelled.')] });
     return;
   }
 
   if (action === 'resign') {
-    const { session } = await sessionService.resign(id, interaction.user.id);
+    await sessionService.resign(id, interaction.user.id);
     const full = await sessionService.getSessionWithPlayers(id);
     full.result = { summary: `<@${interaction.user.id}> resigned.` };
     await full.save();
     await dashboardService.updateDashboard(interaction.client, full);
-    await interaction.reply({ embeds: [successEmbed('You resigned.')], ephemeral: true });
+    await interaction.editReply({ embeds: [successEmbed('You resigned.')] });
     return;
   }
 
@@ -122,7 +163,7 @@ async function handleChessButton(interaction, action, [gameId]) {
     const rematch = await sessionService.createRematch(id);
     rematch.state = { fen: chessGame.newGameFen() };
     await rematch.save();
-    await interaction.reply({ content: `Rematch created: game #${rematch.id}.` });
+    await interaction.editReply({ content: `Rematch created: game #${rematch.id}.` });
     const full = await sessionService.getSessionWithPlayers(rematch.id);
     await dashboardService.postDashboard(interaction.channel, full);
     return;
@@ -136,7 +177,7 @@ async function handleLotteryButton(interaction, action, [quantity, lotteryId]) {
   const { lottery } = await lotteryManager.buyTickets(interaction.guildId, interaction.user.id, Number(quantity));
   const ticketCount = (await LotteryTicket.sum('quantity', { where: { lotteryId: lottery.id } })) || 0;
   const { embeds, components } = dashboardService.renderLottery(lottery, ticketCount);
-  await interaction.update({ embeds, components });
+  await interaction.editReply({ embeds, components });
 }
 
 // ── War ──────────────────────────────────────────────────────────────────
@@ -144,7 +185,10 @@ async function handleWarButton(interaction, action, rest) {
   if (action === 'attack') {
     const [type, warId] = rest;
     const myNation = await SimulationNation.findOne({ where: { userId: interaction.user.id, scenarioId: null, isActive: true } });
-    if (!myNation) return safeReplyError(interaction, 'You need a simulation nation first (`/sim nation create`).');
+    if (!myNation) {
+      await interaction.editReply({ embeds: [errorEmbed('You need a simulation nation first (`/sim nation create`).')] });
+      return;
+    }
 
     const { war, outcome, actor, target } = await warSimulator.executeAttack({
       warId: Number(warId),
@@ -153,7 +197,7 @@ async function handleWarButton(interaction, action, rest) {
     });
 
     const resultText = outcome.result.replace(/_/g, ' ');
-    await interaction.reply({
+    await interaction.editReply({
       embeds: [
         baseEmbed({
           title: `${type.toUpperCase()} ATTACK — ${resultText.toUpperCase()}`,
@@ -171,18 +215,24 @@ async function handleWarButton(interaction, action, rest) {
   if (action === 'details') {
     const [warId] = rest;
     const war = await SimulationWar.findByPk(Number(warId), { include: [{ association: 'attacker' }, { association: 'defender' }] });
-    if (!war) return safeReplyError(interaction, 'War not found.');
-    await interaction.reply({ embeds: [buildWarEmbed(war, war.attacker, war.defender)], ephemeral: true });
+    if (!war) {
+      await interaction.editReply({ embeds: [errorEmbed('War not found.')] });
+      return;
+    }
+    await interaction.editReply({ embeds: [buildWarEmbed(war, war.attacker, war.defender)] });
     return;
   }
 
   if (action === 'log') {
     const [warId] = rest;
     const attacks = await SimulationAttack.findAll({ where: { warId: Number(warId) }, order: [['createdAt', 'DESC']], limit: 10 });
-    if (!attacks.length) return interaction.reply({ embeds: [baseEmbed({ title: '📜 Battle Log', description: 'No attacks logged yet.' })], ephemeral: true });
+    if (!attacks.length) {
+      await interaction.editReply({ embeds: [baseEmbed({ title: '📜 Battle Log', description: 'No attacks logged yet.' })] });
+      return;
+    }
 
     const lines = attacks.map((a) => `Turn ${a.turn}: **${a.actionType}** by nation #${a.actorNationId} → ${a.result.replace(/_/g, ' ')} (resistance ${a.resistanceChange})`);
-    await interaction.reply({ embeds: [baseEmbed({ title: '📜 Battle Log', description: lines.join('\n') })], ephemeral: true });
+    await interaction.editReply({ embeds: [baseEmbed({ title: '📜 Battle Log', description: lines.join('\n') })] });
     return;
   }
 }

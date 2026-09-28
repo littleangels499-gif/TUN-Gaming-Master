@@ -1,4 +1,4 @@
-const { SlashCommandBuilder } = require('discord.js');
+const { SlashCommandBuilder, MessageFlags } = require('discord.js');
 const { isGameAdmin, isSimAdmin } = require('../utils/permissions');
 const { adjustBalance, ensureUser } = require('../utils/economy');
 const { SimulationWar } = require('../database/models');
@@ -28,7 +28,7 @@ module.exports = {
 
     if (sub === 'give_currency') {
       if (!isGameAdmin(interaction.member)) {
-        await interaction.reply({ embeds: [errorEmbed('Only a Game Administrator can do that.')], ephemeral: true });
+        await interaction.reply({ embeds: [errorEmbed('Only a Game Administrator can do that.')], flags: MessageFlags.Ephemeral });
         return;
       }
       const member = interaction.options.getUser('member');
@@ -42,12 +42,12 @@ module.exports = {
 
     if (sub === 'force_end_war') {
       if (!isSimAdmin(interaction.member)) {
-        await interaction.reply({ embeds: [errorEmbed('Only a Simulation Administrator can do that.')], ephemeral: true });
+        await interaction.reply({ embeds: [errorEmbed('Only a Simulation Administrator can do that.')], flags: MessageFlags.Ephemeral });
         return;
       }
       const warId = interaction.options.getInteger('war_id');
       const war = await SimulationWar.findByPk(warId);
-      if (!war) return interaction.reply({ embeds: [errorEmbed('War not found.')], ephemeral: true });
+      if (!war) return interaction.reply({ embeds: [errorEmbed('War not found.')], flags: MessageFlags.Ephemeral });
 
       war.status = 'ended_by_admin';
       war.endedAt = new Date();

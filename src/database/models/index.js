@@ -17,6 +17,7 @@ const SimulationScenario = require('./SimulationScenario')(sequelize);
 const SimulationScenarioPlayer = require('./SimulationScenarioPlayer')(sequelize);
 const SimulationTrainingScore = require('./SimulationTrainingScore')(sequelize);
 const AuditLog = require('./AuditLog')(sequelize);
+const HubPanel = require('./HubPanel')(sequelize);
 
 // ── Associations ────────────────────────────────────────────────────────
 
@@ -64,4 +65,5 @@ module.exports = {
   SimulationScenarioPlayer,
   SimulationTrainingScore,
   AuditLog,
+  HubPanel,
 };

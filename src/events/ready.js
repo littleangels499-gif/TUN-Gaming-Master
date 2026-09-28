@@ -1,7 +1,7 @@
 const logger = require('../utils/logger');
 
 module.exports = {
-  name: 'ready',
+  name: ['clientReady', 'ready'],
   once: true,
   execute(client) {
     logger.info(`Logged in as ${client.user.tag}. Serving ${client.guilds.cache.size} guild(s).`);

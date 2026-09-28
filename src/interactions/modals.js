@@ -1,8 +1,16 @@
+const { MessageFlags } = require('discord.js');
 const { handleChessMove } = require('./chessHandlers');
 const { errorEmbed } = require('../utils/embeds');
 
 async function handleModal(interaction) {
   const [namespace, action, ...rest] = interaction.customId.split(':');
+
+  try {
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+  } catch (err) {
+    // Token already expired before we could acknowledge — nothing to do.
+    return;
+  }
 
   try {
     if (namespace === 'chess' && action === 'move_modal') {
@@ -12,7 +20,7 @@ async function handleModal(interaction) {
       return;
     }
   } catch (err) {
-    await interaction.reply({ embeds: [errorEmbed(err.message)], ephemeral: true });
+    await interaction.editReply({ embeds: [errorEmbed(err.message)] }).catch(() => {});
   }
 }
 

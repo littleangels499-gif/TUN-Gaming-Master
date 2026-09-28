@@ -1,4 +1,4 @@
-const { SlashCommandBuilder } = require('discord.js');
+const { SlashCommandBuilder, MessageFlags } = require('discord.js');
 const lotteryManager = require('../games/lottery/lotteryManager');
 const dashboardService = require('../services/dashboardService');
 const { errorEmbed } = require('../utils/embeds');
@@ -43,7 +43,7 @@ module.exports = {
 
       if (sub === 'draw') {
         if (!isGameAdmin(interaction.member)) {
-          await interaction.reply({ embeds: [errorEmbed('Only a Game Administrator can draw the lottery.')], ephemeral: true });
+          await interaction.reply({ embeds: [errorEmbed('Only a Game Administrator can draw the lottery.')], flags: MessageFlags.Ephemeral });
           return;
         }
         const lottery = await lotteryManager.getOrCreateOpenLottery(interaction.guildId);
@@ -54,7 +54,7 @@ module.exports = {
         return;
       }
     } catch (err) {
-      await interaction.reply({ embeds: [errorEmbed(err.message)], ephemeral: true });
+      await interaction.reply({ embeds: [errorEmbed(err.message)], flags: MessageFlags.Ephemeral });
     }
   },
 };

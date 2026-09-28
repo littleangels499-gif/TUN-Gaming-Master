@@ -32,12 +32,30 @@ async function main() {
   const eventsDir = path.join(__dirname, 'events');
   for (const file of fs.readdirSync(eventsDir).filter((f) => f.endsWith('.js'))) {
     const event = require(path.join(eventsDir, file));
-    if (event.once) client.once(event.name, (...args) => event.execute(...args));
-    else client.on(event.name, (...args) => event.execute(...args));
+    const names = Array.isArray(event.name) ? event.name : [event.name];
+
+    if (event.once) {
+      // Guard against firing twice when a discord.js version emits both an
+      // old and new alias for the same event (e.g. "ready" + "clientReady"
+      // during discord.js's v14->v15 transition).
+      let fired = false;
+      for (const name of names) {
+        client.once(name, (...args) => {
+          if (fired) return;
+          fired = true;
+          event.execute(...args);
+        });
+      }
+    } else {
+      for (const name of names) {
+        client.on(name, (...args) => event.execute(...args));
+      }
+    }
   }
 
   await connectDatabase();
   await syncDatabase();
+  await require('./services/hubPanelService').loadCache();
 
   if (!config.discord.token) {
     logger.error('DISCORD_TOKEN is not set. Copy .env.example to .env and fill it in before starting the bot.');

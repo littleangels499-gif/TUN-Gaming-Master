@@ -2,6 +2,7 @@ const sessionService = require('../services/sessionService');
 const dashboardService = require('../services/dashboardService');
 const chessGame = require('../games/chess/chessGame');
 const { errorEmbed, successEmbed } = require('../utils/embeds');
+const { MessageFlags } = require('discord.js');
 
 function seatOf(session, userId) {
   const player = (session.players || []).find((p) => p.userId === userId);
@@ -14,10 +15,18 @@ function fenTurnIsWhite(fen) {
 
 /**
  * Applies a move for `userId` in game `gameId`. Shared by the /chess move
- * slash command and the button+modal flow so behavior never diverges.
+ * slash command (which has NOT deferred) and the button+modal flow (which
+ * HAS already deferred by the time this runs) — `reply` below adapts to
+ * whichever state the interaction is already in.
  */
 async function handleChessMove(interactionLike, gameId, moveInput) {
-  const reply = (payload) => interactionLike.reply(payload);
+  const reply = async (payload) => {
+    const { ephemeral, ...rest } = payload;
+    if (interactionLike.deferred || interactionLike.replied) {
+      return interactionLike.editReply(rest);
+    }
+    return interactionLike.reply(ephemeral ? { ...rest, flags: MessageFlags.Ephemeral } : rest);
+  };
 
   const session = await sessionService.getSessionWithPlayers(gameId);
   if (!session || session.gameType !== 'chess') {

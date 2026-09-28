@@ -1,3 +1,4 @@
+const { MessageFlags } = require('discord.js');
 const logger = require('../utils/logger');
 const { errorEmbed } = require('../utils/embeds');
 const { handleButton } = require('../interactions/buttons');
@@ -34,7 +35,7 @@ module.exports = {
       }
     } catch (err) {
       logger.error('Unhandled interaction error:', err);
-      const payload = { embeds: [errorEmbed('An unexpected error occurred. This has been logged.')], ephemeral: true };
+      const payload = { embeds: [errorEmbed('An unexpected error occurred. This has been logged.')], flags: MessageFlags.Ephemeral };
       try {
         if (interaction.deferred || interaction.replied) await interaction.followUp(payload);
         else await interaction.reply(payload);

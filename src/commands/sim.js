@@ -1,4 +1,4 @@
-const { SlashCommandBuilder } = require('discord.js');
+const { SlashCommandBuilder, MessageFlags } = require('discord.js');
 const nationService = require('../simulation/nationService');
 const scenarioService = require('../simulation/scenarioService');
 const warSimulator = require('../simulation/warSimulator');
@@ -176,7 +176,7 @@ module.exports = {
       // ── /sim link, /sim refresh ─────────────────────────────────────
       if (!group && sub === 'link') {
         const apiKey = interaction.options.getString('api_key');
-        await interaction.deferReply({ ephemeral: true });
+        await interaction.deferReply({ flags: MessageFlags.Ephemeral });
         const nation = await nationService.linkAndImportNation(interaction.user.id, apiKey);
         await interaction.editReply({
           embeds: [successEmbed(`Linked! Your simulation nation "**${nation.name}**" has been created from your PnW nation. Consider regenerating your API key on the PnW site now that it's been used.`)],
@@ -186,7 +186,7 @@ module.exports = {
 
       if (!group && sub === 'refresh') {
         const apiKey = interaction.options.getString('api_key');
-        await interaction.deferReply({ ephemeral: true });
+        await interaction.deferReply({ flags: MessageFlags.Ephemeral });
         await interaction.editReply({
           embeds: [
             baseEmbed({
@@ -199,7 +199,7 @@ module.exports = {
         // Simplified single-step confirm-by-re-running for the MVP; a full
         // implementation could use a confirm button with a short-lived token.
         const nation = await nationService.refreshNationFromPnw(interaction.user.id, apiKey);
-        await interaction.followUp({ embeds: [successEmbed(`Refreshed "${nation.name}" from Politics & War.`)], ephemeral: true });
+        await interaction.followUp({ embeds: [successEmbed(`Refreshed "${nation.name}" from Politics & War.`)], flags: MessageFlags.Ephemeral });
         return;
       }
 
@@ -214,7 +214,7 @@ module.exports = {
       if (group === 'nation' && sub === 'view') {
         const nation = await nationService.getNormalNation(interaction.user.id);
         if (!nation) {
-          await interaction.reply({ embeds: [errorEmbed('You don\'t have a simulation nation yet. Use `/sim nation create` or `/sim link`.')], ephemeral: true });
+          await interaction.reply({ embeds: [errorEmbed('You don\'t have a simulation nation yet. Use `/sim nation create` or `/sim link`.')], flags: MessageFlags.Ephemeral });
           return;
         }
         await interaction.reply({ embeds: [nationSummaryEmbed(nation)] });
@@ -230,8 +230,8 @@ module.exports = {
           nationService.getNormalNation(interaction.user.id),
           nationService.getNormalNation(target.id),
         ]);
-        if (!myNation) return interaction.reply({ embeds: [errorEmbed('You need a simulation nation first.')], ephemeral: true });
-        if (!targetNation) return interaction.reply({ embeds: [errorEmbed('That member has no simulation nation.')], ephemeral: true });
+        if (!myNation) return interaction.reply({ embeds: [errorEmbed('You need a simulation nation first.')], flags: MessageFlags.Ephemeral });
+        if (!targetNation) return interaction.reply({ embeds: [errorEmbed('That member has no simulation nation.')], flags: MessageFlags.Ephemeral });
 
         const war = await warSimulator.declareWar(myNation.id, targetNation.id, { warType });
         await interaction.reply({
@@ -244,7 +244,7 @@ module.exports = {
       if (group === 'war' && sub === 'view') {
         const warId = interaction.options.getInteger('war_id');
         const war = await SimulationWar.findByPk(warId, { include: [{ association: 'attacker' }, { association: 'defender' }] });
-        if (!war) return interaction.reply({ embeds: [errorEmbed('War not found.')], ephemeral: true });
+        if (!war) return interaction.reply({ embeds: [errorEmbed('War not found.')], flags: MessageFlags.Ephemeral });
         await interaction.reply({ embeds: [buildWarEmbed(war, war.attacker, war.defender)], components: buildWarComponents(war) });
         return;
       }
@@ -254,7 +254,7 @@ module.exports = {
         const warId = interaction.options.getInteger('war_id');
         const type = interaction.options.getString('type');
         const myNation = await nationService.getNormalNation(interaction.user.id);
-        if (!myNation) return interaction.reply({ embeds: [errorEmbed('You need a simulation nation first.')], ephemeral: true });
+        if (!myNation) return interaction.reply({ embeds: [errorEmbed('You need a simulation nation first.')], flags: MessageFlags.Ephemeral });
 
         const { war, outcome, actor, target } = await warSimulator.executeAttack({
           warId,
@@ -280,7 +280,7 @@ module.exports = {
       // ── /sim scenario ... ────────────────────────────────────────────
       if (group === 'scenario') {
         if (!isTrainingInstructor(interaction.member)) {
-          await interaction.reply({ embeds: [errorEmbed('Only a Training Instructor or Simulation Administrator can manage scenarios.')], ephemeral: true });
+          await interaction.reply({ embeds: [errorEmbed('Only a Training Instructor or Simulation Administrator can manage scenarios.')], flags: MessageFlags.Ephemeral });
           return;
         }
 
@@ -306,7 +306,7 @@ module.exports = {
           const field = interaction.options.getString('field');
           const value = interaction.options.getNumber('value');
           await scenarioService.applyOverride(scenarioId, member.id, { [field]: value }, interaction.user.id);
-          await interaction.reply({ embeds: [successEmbed(`Set ${field} = ${value} for <@${member.id}> in scenario #${scenarioId}.`)], ephemeral: true });
+          await interaction.reply({ embeds: [successEmbed(`Set ${field} = ${value} for <@${member.id}> in scenario #${scenarioId}.`)], flags: MessageFlags.Ephemeral });
           return;
         }
 
@@ -316,7 +316,7 @@ module.exports = {
           const resource = interaction.options.getString('resource');
           const amount = interaction.options.getNumber('amount');
           await scenarioService.applyResourceOverride(scenarioId, member.id, resource, amount, interaction.user.id);
-          await interaction.reply({ embeds: [successEmbed(`Set ${resource} = ${amount} for <@${member.id}> in scenario #${scenarioId}.`)], ephemeral: true });
+          await interaction.reply({ embeds: [successEmbed(`Set ${resource} = ${amount} for <@${member.id}> in scenario #${scenarioId}.`)], flags: MessageFlags.Ephemeral });
           return;
         }
 
@@ -335,7 +335,7 @@ module.exports = {
         }
       }
     } catch (err) {
-      const replyPayload = { embeds: [errorEmbed(err.message)], ephemeral: true };
+      const replyPayload = { embeds: [errorEmbed(err.message)], flags: MessageFlags.Ephemeral };
       if (interaction.deferred || interaction.replied) {
         await interaction.followUp(replyPayload);
       } else {

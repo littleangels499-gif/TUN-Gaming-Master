@@ -1,4 +1,4 @@
-const { SlashCommandBuilder } = require('discord.js');
+const { SlashCommandBuilder, MessageFlags } = require('discord.js');
 const { ensureUser, getOrCreateBalance } = require('../utils/economy');
 const { baseEmbed, COLORS } = require('../utils/embeds');
 
@@ -12,7 +12,7 @@ module.exports = {
     const balance = await getOrCreateBalance(interaction.user.id);
     await interaction.reply({
       embeds: [baseEmbed({ title: '💰 Your Balance', description: `**${balance.balance}** coins`, color: COLORS.primary })],
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
   },
 };

@@ -1,4 +1,4 @@
-const { SlashCommandBuilder } = require('discord.js');
+const { SlashCommandBuilder, MessageFlags } = require('discord.js');
 const sessionService = require('../services/sessionService');
 const dashboardService = require('../services/dashboardService');
 const { errorEmbed, successEmbed } = require('../utils/embeds');
@@ -29,7 +29,7 @@ module.exports = {
         const session = await sessionService.joinSession(gameId, interaction.user.id);
         const full = await sessionService.getSessionWithPlayers(session.id);
         await dashboardService.updateDashboard(interaction.client, full);
-        await interaction.reply({ embeds: [successEmbed(`You joined game #${gameId}.`)], ephemeral: true });
+        await interaction.reply({ embeds: [successEmbed(`You joined game #${gameId}.`)], flags: MessageFlags.Ephemeral });
         return;
       }
 
@@ -37,15 +37,15 @@ module.exports = {
         await sessionService.leaveSession(gameId, interaction.user.id);
         const full = await sessionService.getSessionWithPlayers(gameId);
         await dashboardService.updateDashboard(interaction.client, full);
-        await interaction.reply({ embeds: [successEmbed(`You left game #${gameId}.`)], ephemeral: true });
+        await interaction.reply({ embeds: [successEmbed(`You left game #${gameId}.`)], flags: MessageFlags.Ephemeral });
         return;
       }
 
       if (sub === 'status') {
         const full = await sessionService.getSessionWithPlayers(gameId);
-        if (!full) return interaction.reply({ embeds: [errorEmbed('Game not found.')], ephemeral: true });
+        if (!full) return interaction.reply({ embeds: [errorEmbed('Game not found.')], flags: MessageFlags.Ephemeral });
         const { embeds, components } = dashboardService.renderSession(full);
-        await interaction.reply({ embeds, components, ephemeral: true });
+        await interaction.reply({ embeds, components, flags: MessageFlags.Ephemeral });
         return;
       }
 
@@ -57,7 +57,7 @@ module.exports = {
         return;
       }
     } catch (err) {
-      await interaction.reply({ embeds: [errorEmbed(err.message)], ephemeral: true });
+      await interaction.reply({ embeds: [errorEmbed(err.message)], flags: MessageFlags.Ephemeral });
     }
   },
 };
