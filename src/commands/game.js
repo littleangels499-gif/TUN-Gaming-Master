@@ -44,7 +44,10 @@ module.exports = {
 
       if (sub === 'status') {
         const full = await sessionService.getSessionWithPlayers(gameId);
-        if (!full) return interaction.reply({ embeds: [errorEmbed('Game not found.')], flags: MessageFlags.Ephemeral });
+        if (!full) {
+          await interaction.reply({ embeds: [errorEmbed('Game not found.')], flags: MessageFlags.Ephemeral });
+          return;
+        }
         const { embeds, components } = dashboardService.renderSession(full);
         await interaction.reply({ embeds, components, flags: MessageFlags.Ephemeral });
         return;

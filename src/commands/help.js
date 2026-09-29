@@ -51,7 +51,7 @@ const TOPICS = {
       'Sim Admins: `/sim nation create member:@user [name]` creates a nation for someone else, and `/sim nation view member:@user` shows theirs.',
       '',
       '**Wars**',
-      '`/sim war declare target:@member [war_type]` — declare war on another member\'s simulation nation (raid / ordinary / attrition).',
+      '`/sim war declare target:@member [war_type]` — declare war on another member\'s simulation nation (raid / ordinary / attrition). Like chess, each war gets its own thread. A war with no attacks for 24 hours auto-expires.',
       '`/sim war view war_id` — show a war dashboard.',
       '`/sim attack launch war_id type` — ground, air, naval, missile or nuke. You can also use the buttons on the war dashboard.',
       'A war ends when one side\'s resistance hits 0 or the turns run out.',

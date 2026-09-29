@@ -16,6 +16,7 @@ module.exports = (sequelize) => {
     },
     scenarioId: { type: DataTypes.INTEGER, allowNull: true },
     turnsRemaining: { type: DataTypes.INTEGER, allowNull: false },
+    threadId: { type: DataTypes.STRING, allowNull: true },
     startedAt: { type: DataTypes.DATE, allowNull: false, defaultValue: DataTypes.NOW },
     endedAt: { type: DataTypes.DATE, allowNull: true },
     result: { type: DataTypes.JSON, allowNull: true },

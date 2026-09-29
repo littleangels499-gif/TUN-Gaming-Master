@@ -57,6 +57,7 @@ const config = {
     threadDeleteDelaySeconds: 60,   // how long a thread lives after its game ends
     waitingTimeoutMinutes: 15,      // lobby nobody started -> cancelled
     activeIdleTimeoutMinutes: 60,   // running game with no moves -> ended
+    warIdleTimeoutHours: 24,        // war with no attacks -> auto-expired
     sweepIntervalSeconds: 15,
   },
 

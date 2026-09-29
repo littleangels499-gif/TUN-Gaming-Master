@@ -2,12 +2,12 @@ const { SlashCommandBuilder, MessageFlags } = require('discord.js');
 const nationService = require('../simulation/nationService');
 const scenarioService = require('../simulation/scenarioService');
 const warSimulator = require('../simulation/warSimulator');
+const warLauncher = require('../simulation/warLauncher');
 const { SimulationWar } = require('../database/models');
 const { errorEmbed, successEmbed, baseEmbed, COLORS } = require('../utils/embeds');
 const { buildWarEmbed, buildWarComponents } = require('../ui/warDashboard');
 const { isTrainingInstructor, isSimAdmin } = require('../utils/permissions');
 const { recordAudit } = require('../services/auditService');
-const dashboardService = require('../services/dashboardService');
 
 function nationSummaryEmbed(nation) {
   const r = nation.resources;
@@ -281,21 +281,36 @@ module.exports = {
           nationService.getNormalNation(interaction.user.id),
           nationService.getNormalNation(target.id),
         ]);
-        if (!myNation) return interaction.reply({ embeds: [errorEmbed('You need a simulation nation first.')], flags: MessageFlags.Ephemeral });
-        if (!targetNation) return interaction.reply({ embeds: [errorEmbed('That member has no simulation nation.')], flags: MessageFlags.Ephemeral });
+        if (!myNation) {
+          await interaction.reply({ embeds: [errorEmbed('You need a simulation nation first.')], flags: MessageFlags.Ephemeral });
+          return;
+        }
+        if (!targetNation) {
+          await interaction.reply({ embeds: [errorEmbed('That member has no simulation nation.')], flags: MessageFlags.Ephemeral });
+          return;
+        }
 
-        const war = await warSimulator.declareWar(myNation.id, targetNation.id, { warType });
-        await interaction.reply({
-          embeds: [buildWarEmbed(war, myNation, targetNation)],
-          components: buildWarComponents(war),
-        });
+        await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+        try {
+          const { war, thread, fallbackReason } = await warLauncher.declareWarWithThread(interaction, {
+            attackerNation: myNation,
+            defenderNation: targetNation,
+            warType,
+          });
+          await interaction.editReply({ content: warLauncher.describeWarLaunch(war, thread, fallbackReason) });
+        } catch (err) {
+          await interaction.editReply({ embeds: [errorEmbed(err.message)] });
+        }
         return;
       }
 
       if (group === 'war' && sub === 'view') {
         const warId = interaction.options.getInteger('war_id');
         const war = await SimulationWar.findByPk(warId, { include: [{ association: 'attacker' }, { association: 'defender' }] });
-        if (!war) return interaction.reply({ embeds: [errorEmbed('War not found.')], flags: MessageFlags.Ephemeral });
+        if (!war) {
+          await interaction.reply({ embeds: [errorEmbed('War not found.')], flags: MessageFlags.Ephemeral });
+          return;
+        }
         await interaction.reply({ embeds: [buildWarEmbed(war, war.attacker, war.defender)], components: buildWarComponents(war) });
         return;
       }
@@ -305,7 +320,10 @@ module.exports = {
         const warId = interaction.options.getInteger('war_id');
         const type = interaction.options.getString('type');
         const myNation = await nationService.getNormalNation(interaction.user.id);
-        if (!myNation) return interaction.reply({ embeds: [errorEmbed('You need a simulation nation first.')], flags: MessageFlags.Ephemeral });
+        if (!myNation) {
+          await interaction.reply({ embeds: [errorEmbed('You need a simulation nation first.')], flags: MessageFlags.Ephemeral });
+          return;
+        }
 
         const { war, outcome, actor, target } = await warSimulator.executeAttack({
           warId,

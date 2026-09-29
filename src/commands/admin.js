@@ -47,7 +47,10 @@ module.exports = {
       }
       const warId = interaction.options.getInteger('war_id');
       const war = await SimulationWar.findByPk(warId);
-      if (!war) return interaction.reply({ embeds: [errorEmbed('War not found.')], flags: MessageFlags.Ephemeral });
+      if (!war) {
+        await interaction.reply({ embeds: [errorEmbed('War not found.')], flags: MessageFlags.Ephemeral });
+        return;
+      }
 
       war.status = 'ended_by_admin';
       war.endedAt = new Date();
