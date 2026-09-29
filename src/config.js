@@ -52,6 +52,14 @@ const config = {
     resistanceMax: 100,
   },
 
+  // Per-game threads (see services/gameThreadService.js)
+  games: {
+    threadDeleteDelaySeconds: 60,   // how long a thread lives after its game ends
+    waitingTimeoutMinutes: 15,      // lobby nobody started -> cancelled
+    activeIdleTimeoutMinutes: 60,   // running game with no moves -> ended
+    sweepIntervalSeconds: 15,
+  },
+
   economy: {
     startingCurrency: 500,
     dailyRewardAmount: 100,

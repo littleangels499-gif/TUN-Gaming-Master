@@ -1,7 +1,7 @@
 const { MessageFlags } = require('discord.js');
 const sessionService = require('../services/sessionService');
 const dashboardService = require('../services/dashboardService');
-const chessGame = require('../games/chess/chessGame');
+const chessLauncher = require('../games/chess/chessLauncher');
 const lotteryManager = require('../games/lottery/lotteryManager');
 const { LotteryTicket } = require('../database/models');
 const { baseEmbed, COLORS, errorEmbed } = require('../utils/embeds');
@@ -46,7 +46,7 @@ async function handleChessAiSelect(interaction) {
 // ── Gaming Hub menu ──────────────────────────────────────────────────────
 async function handleHubSelect(interaction) {
   const choice = interaction.values[0];
-  const isEphemeralChoice = ['war_simulator', 'leaderboards', 'daily'].includes(choice);
+  const isEphemeralChoice = ['chess', 'war_simulator', 'leaderboards', 'daily'].includes(choice);
 
   // Acknowledge within Discord's 3-second window BEFORE doing any DB work.
   try {
@@ -57,18 +57,8 @@ async function handleHubSelect(interaction) {
 
   try {
     if (choice === 'chess') {
-      const session = await sessionService.createSession({
-        gameType: 'chess',
-        hostId: interaction.user.id,
-        guildId: interaction.guildId,
-        channelId: interaction.channelId,
-        settings: { maxPlayers: 2 },
-      });
-      session.state = { fen: chessGame.newGameFen() };
-      await session.save();
-      await interaction.editReply({ content: `Chess game #${session.id} created.` });
-      const full = await sessionService.getSessionWithPlayers(session.id);
-      await dashboardService.postDashboard(interaction.channel, full);
+      const { session, thread, fallbackReason } = await chessLauncher.launchChess(interaction);
+      await interaction.editReply({ content: chessLauncher.describeLaunch(session, thread, fallbackReason) });
       return;
     }
 

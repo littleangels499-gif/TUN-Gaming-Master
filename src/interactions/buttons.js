@@ -1,7 +1,7 @@
 const { MessageFlags, ActionRowBuilder, StringSelectMenuBuilder } = require('discord.js');
 const sessionService = require('../services/sessionService');
 const dashboardService = require('../services/dashboardService');
-const chessGame = require('../games/chess/chessGame');
+const chessLauncher = require('../games/chess/chessLauncher');
 const { buildMoveModal } = require('../ui/chessUI');
 const { buildWarEmbed, buildWarComponents } = require('../ui/warDashboard');
 const { errorEmbed, successEmbed, baseEmbed, COLORS } = require('../utils/embeds');
@@ -14,6 +14,7 @@ const { buildDailyClaimEmbed, buildBalanceEmbed } = require('../ui/economyUI');
 // Actions that reply ephemerally (only the clicker sees them). Everything
 // else replies publicly. Keep this in sync with the branches below.
 const EPHEMERAL_ACTIONS = new Set([
+  'hub:chess',
   'hub:war',
   'hub:daily',
   'hub:balance',
@@ -22,6 +23,7 @@ const EPHEMERAL_ACTIONS = new Set([
   'chess:ready',
   'chess:cancel',
   'chess:resign',
+  'chess:rematch',
   'war:details',
   'war:log',
 ]);
@@ -93,18 +95,8 @@ async function handleHubButton(interaction, action) {
   }
 
   if (action === 'chess') {
-    const session = await sessionService.createSession({
-      gameType: 'chess',
-      hostId: interaction.user.id,
-      guildId: interaction.guildId,
-      channelId: interaction.channelId,
-      settings: { maxPlayers: 2 },
-    });
-    session.state = { fen: chessGame.newGameFen() };
-    await session.save();
-    await interaction.editReply({ content: `Chess game #${session.id} created.` });
-    const full = await sessionService.getSessionWithPlayers(session.id);
-    await dashboardService.postDashboard(interaction.channel, full);
+    const { session, thread, fallbackReason } = await chessLauncher.launchChess(interaction);
+    await interaction.editReply({ content: chessLauncher.describeLaunch(session, thread, fallbackReason) });
     return;
   }
 
@@ -196,12 +188,8 @@ async function handleChessButton(interaction, action, [gameId]) {
   }
 
   if (action === 'rematch') {
-    const rematch = await sessionService.createRematch(id);
-    rematch.state = { fen: chessGame.newGameFen() };
-    await rematch.save();
-    await interaction.editReply({ content: `Rematch created: game #${rematch.id}.` });
-    const full = await sessionService.getSessionWithPlayers(rematch.id);
-    await dashboardService.postDashboard(interaction.channel, full);
+    const { session, thread, fallbackReason } = await chessLauncher.launchChessRematch(interaction, id);
+    await interaction.editReply({ content: chessLauncher.describeLaunch(session, thread, fallbackReason, 'Your rematch') });
     return;
   }
 }

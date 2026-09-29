@@ -1,6 +1,7 @@
 const { SlashCommandBuilder, MessageFlags } = require('discord.js');
 const sessionService = require('../services/sessionService');
 const dashboardService = require('../services/dashboardService');
+const chessLauncher = require('../games/chess/chessLauncher');
 const { errorEmbed, successEmbed } = require('../utils/embeds');
 
 module.exports = {
@@ -50,14 +51,15 @@ module.exports = {
       }
 
       if (sub === 'rematch') {
-        const rematch = await sessionService.createRematch(gameId);
-        await interaction.reply({ content: `Rematch created: game #${rematch.id}.` });
-        const full = await sessionService.getSessionWithPlayers(rematch.id);
-        await dashboardService.postDashboard(interaction.channel, full);
+        await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+        const { session, thread, fallbackReason } = await chessLauncher.launchChessRematch(interaction, gameId);
+        await interaction.editReply({ content: chessLauncher.describeLaunch(session, thread, fallbackReason, 'Your rematch') });
         return;
       }
     } catch (err) {
-      await interaction.reply({ embeds: [errorEmbed(err.message)], flags: MessageFlags.Ephemeral });
+      const payload = { embeds: [errorEmbed(err.message)] };
+      if (interaction.deferred || interaction.replied) await interaction.editReply(payload);
+      else await interaction.reply({ ...payload, flags: MessageFlags.Ephemeral });
     }
   },
 };

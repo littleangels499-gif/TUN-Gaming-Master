@@ -101,6 +101,12 @@ async function createRematch(oldSessionId) {
     await GamePlayer.create({ sessionId: rematch.id, seat: p.seat, userId: p.userId });
   }
 
+  if (old.vsAI) {
+    rematch.status = 'active';
+    rematch.turnUserId = old.hostId;
+    await rematch.save();
+  }
+
   return rematch;
 }
 

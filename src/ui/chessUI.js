@@ -4,6 +4,14 @@ const {
 } = require('discord.js');
 const { baseEmbed, COLORS } = require('../utils/embeds');
 const chessGame = require('../games/chess/chessGame');
+const config = require('../config');
+
+function threadNote(session) {
+  if (!session.threadId) return null;
+  const s = config.games.threadDeleteDelaySeconds;
+  const when = s >= 60 ? `${Math.round(s / 60)} minute(s)` : `${s} seconds`;
+  return `🧹 This thread will be deleted about ${when} after the game ends.`;
+}
 
 function buildChessEmbed(session, whiteDisplay, blackDisplay) {
   const fen = session.state.fen;
@@ -21,8 +29,10 @@ function buildChessEmbed(session, whiteDisplay, blackDisplay) {
     lines.push(`**Turn:** ${turn}`);
   } else if (session.status === 'finished') {
     lines.push(`**Result:** ${session.result?.summary || 'Game over'}`);
+    if (threadNote(session)) lines.push(`${threadNote(session)} Press **Rematch** to keep playing.`);
   } else if (session.status === 'cancelled') {
     lines.push('_This game was cancelled._');
+    if (threadNote(session)) lines.push(threadNote(session));
   } else {
     lines.push('_Waiting for players..._');
   }

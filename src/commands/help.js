@@ -23,6 +23,7 @@ const TOPICS = {
       '`/hub show` — open the Gaming Hub privately (only you see it).',
       '',
       '**Chess**',
+      'Every game opens in its **own thread** so the channel stays tidy. The thread is deleted about a minute after the game ends (Rematch reuses it). Unstarted lobbies expire after 15 minutes.',
       '`/chess start` — start a game. Options: `vs_ai` (play the bot), `difficulty` (easy/medium/hard), `opponent` (invite one person), `private`.',
       'Then use the buttons on the board: **Join**, **Ready**, **Play vs AI** (host only, pick a difficulty), **Make Move**, **Resign**, **Rematch**.',
       'Moves use algebraic notation: `e4`, `Nf3`, `Qxe7`, `O-O`.',
