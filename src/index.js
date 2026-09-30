@@ -54,7 +54,10 @@ async function main() {
   }
 
   await connectDatabase();
-  await syncDatabase();
+  // alter: true so new columns added between versions (like this update's
+  // threadId on wars) get applied automatically to an existing database
+  // instead of silently missing, as happened on Railway.
+  await syncDatabase({ alter: true });
   await require('./services/hubPanelService').loadCache();
 
   if (!config.discord.token) {
