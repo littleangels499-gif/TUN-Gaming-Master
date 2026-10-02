@@ -60,6 +60,11 @@ async function handleChessMove(interactionLike, gameId, moveInput) {
   if (result.isGameOver) {
     session.status = 'finished';
     session.result = { summary: result.isCheckmate ? `Checkmate — ${whiteToMove ? 'White' : 'Black'} wins!` : result.isStalemate ? 'Stalemate — draw.' : 'Draw.' };
+    // The mover just delivered checkmate (or the game drew) — record it for leaderboards.
+    await sessionService.recordChessOutcome(session.id, {
+      winnerUserId: result.isCheckmate ? interactionLike.user.id : null,
+      isDraw: !result.isCheckmate,
+    });
   } else if (isVsAI) {
     // Immediately play the AI's reply move so the human doesn't have to poll.
     const aiMove = chessGame.pickAiMove(result.fen, session.aiDifficulty || 'easy');
@@ -69,6 +74,12 @@ async function handleChessMove(interactionLike, gameId, moveInput) {
       if (aiResult.isGameOver) {
         session.status = 'finished';
         session.result = { summary: aiResult.isCheckmate ? 'Checkmate — AI wins!' : aiResult.isStalemate ? 'Stalemate — draw.' : 'Draw.' };
+        // AI checkmating the human means the human's only GamePlayer row loses;
+        // passing a winnerUserId that can never match does exactly that.
+        await sessionService.recordChessOutcome(session.id, {
+          winnerUserId: null, // AI is never a real Discord user; null never matches a human's ID
+          isDraw: !aiResult.isCheckmate,
+        });
       }
     }
   }

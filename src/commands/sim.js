@@ -3,7 +3,7 @@ const nationService = require('../simulation/nationService');
 const scenarioService = require('../simulation/scenarioService');
 const warSimulator = require('../simulation/warSimulator');
 const warLauncher = require('../simulation/warLauncher');
-const { SimulationWar } = require('../database/models');
+const { SimulationWar, SimulationTrainingScore } = require('../database/models');
 const { errorEmbed, successEmbed, baseEmbed, COLORS } = require('../utils/embeds');
 const { buildWarEmbed, buildWarComponents } = require('../ui/warDashboard');
 const { isTrainingInstructor, isSimAdmin } = require('../utils/permissions');
@@ -175,6 +175,24 @@ module.exports = {
         )
         .addSubcommand((sub) =>
           sub.setName('end').setDescription('(Instructor) End a scenario (participants revert to their normal nation)').addIntegerOption((o) => o.setName('scenario_id').setDescription('Scenario ID').setRequired(true))
+        )
+        .addSubcommand((sub) =>
+          sub
+            .setName('score')
+            .setDescription('(Instructor) Record an after-action score for a participant')
+            .addIntegerOption((o) => o.setName('scenario_id').setDescription('Scenario ID').setRequired(true))
+            .addUserOption((o) => o.setName('member').setDescription('Participant').setRequired(true))
+            .addNumberOption((o) => o.setName('overall_score').setDescription('Overall score (e.g. 0-100)').setRequired(true))
+            .addNumberOption((o) => o.setName('military_efficiency').setDescription('Military efficiency score'))
+            .addNumberOption((o) => o.setName('resource_management').setDescription('Resource management score'))
+            .addNumberOption((o) => o.setName('strategic_decisions').setDescription('Strategic decision-making score'))
+            .addStringOption((o) => o.setName('notes').setDescription('Instructor notes (shown to the participant)'))
+        )
+        .addSubcommand((sub) =>
+          sub
+            .setName('scores')
+            .setDescription('View recorded after-action scores for a scenario')
+            .addIntegerOption((o) => o.setName('scenario_id').setDescription('Scenario ID').setRequired(true))
         )
     ),
 
@@ -400,6 +418,43 @@ module.exports = {
           const scenarioId = interaction.options.getInteger('scenario_id');
           await scenarioService.endScenario(scenarioId, interaction.user.id);
           await interaction.reply({ embeds: [successEmbed(`Scenario #${scenarioId} ended. All participants are back on their normal simulation nation.`)] });
+          return;
+        }
+
+        if (sub === 'score') {
+          const scenarioId = interaction.options.getInteger('scenario_id');
+          const member = interaction.options.getUser('member');
+          const scoreFields = {
+            overallScore: interaction.options.getNumber('overall_score'),
+            militaryEfficiency: interaction.options.getNumber('military_efficiency') ?? 0,
+            resourceManagement: interaction.options.getNumber('resource_management') ?? 0,
+            strategicDecisions: interaction.options.getNumber('strategic_decisions') ?? 0,
+            instructorNotes: interaction.options.getString('notes') || null,
+          };
+          await scenarioService.recordTrainingScore(scenarioId, member.id, scoreFields);
+          await recordAudit({
+            actorId: interaction.user.id,
+            action: 'scenario.score',
+            targetType: 'SimulationTrainingScore',
+            targetId: member.id,
+            details: { scenarioId, ...scoreFields },
+          });
+          await interaction.reply({ embeds: [successEmbed(`Recorded a score of **${scoreFields.overallScore}** for <@${member.id}> in scenario #${scenarioId}.`)] });
+          return;
+        }
+
+        if (sub === 'scores') {
+          const scenarioId = interaction.options.getInteger('scenario_id');
+          const scores = await SimulationTrainingScore.findAll({ where: { scenarioId }, order: [['overallScore', 'DESC']] });
+          if (!scores.length) {
+            await interaction.reply({ embeds: [errorEmbed('No scores have been recorded for this scenario yet.')], flags: MessageFlags.Ephemeral });
+            return;
+          }
+          const lines = scores.map((s) => {
+            const notes = s.instructorNotes ? ` — _${s.instructorNotes}_` : '';
+            return `<@${s.userId}>: **${s.overallScore}**${notes}`;
+          });
+          await interaction.reply({ embeds: [baseEmbed({ title: `🎓 Scenario #${scenarioId} — Scores`, description: lines.join('\n'), color: COLORS.primary })] });
           return;
         }
       }

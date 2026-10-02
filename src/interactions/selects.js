@@ -6,15 +6,42 @@ const lotteryManager = require('../games/lottery/lotteryManager');
 const { LotteryTicket } = require('../database/models');
 const { baseEmbed, COLORS, errorEmbed } = require('../utils/embeds');
 const { buildDailyClaimEmbed } = require('../ui/economyUI');
+const minesweeperLauncher = require('../games/minesweeper/minesweeperLauncher');
+const { TITLES, BUILDERS } = require('../services/leaderboardService');
+const { ActionRowBuilder, StringSelectMenuBuilder } = require('discord.js');
 
 async function handleSelect(interaction) {
   if (interaction.customId.startsWith('chess:aisel:')) {
     await handleChessAiSelect(interaction);
     return;
   }
+  if (interaction.customId === 'hub:lbselect') {
+    await handleLeaderboardSelect(interaction);
+    return;
+  }
   if (interaction.customId === 'hub:select') {
     await handleHubSelect(interaction);
     return;
+  }
+}
+
+// ── Leaderboard picker (shown after choosing "Leaderboards" in the hub) ──
+async function handleLeaderboardSelect(interaction) {
+  try {
+    await interaction.deferUpdate();
+  } catch (err) {
+    return;
+  }
+  const board = interaction.values[0];
+  try {
+    const description = await BUILDERS[board]();
+    if (!description) {
+      await interaction.editReply({ content: null, embeds: [errorEmbed('Nobody has any data for this leaderboard yet.')], components: [] });
+      return;
+    }
+    await interaction.editReply({ content: null, embeds: [baseEmbed({ title: TITLES[board], description, color: COLORS.primary })], components: [] });
+  } catch (err) {
+    await interaction.editReply({ content: null, embeds: [errorEmbed(err.message)], components: [] }).catch(() => {});
   }
 }
 
@@ -46,7 +73,7 @@ async function handleChessAiSelect(interaction) {
 // ── Gaming Hub menu ──────────────────────────────────────────────────────
 async function handleHubSelect(interaction) {
   const choice = interaction.values[0];
-  const isEphemeralChoice = ['chess', 'war_simulator', 'leaderboards', 'daily'].includes(choice);
+  const isEphemeralChoice = ['chess', 'minesweeper', 'war_simulator', 'leaderboards', 'daily'].includes(choice);
 
   // Acknowledge within Discord's 3-second window BEFORE doing any DB work.
   try {
@@ -59,6 +86,12 @@ async function handleHubSelect(interaction) {
     if (choice === 'chess') {
       const { session, thread, fallbackReason } = await chessLauncher.launchChess(interaction);
       await interaction.editReply({ content: chessLauncher.describeLaunch(session, thread, fallbackReason) });
+      return;
+    }
+
+    if (choice === 'minesweeper') {
+      const { session, thread, fallbackReason } = await minesweeperLauncher.launchMinesweeper(interaction, { mineCount: 5, bet: 0 });
+      await interaction.editReply({ content: minesweeperLauncher.describeLaunch(session, thread, fallbackReason) + '\n_(Default: 5 mines, no bet. Use `/minesweeper start` to customize.)_' });
       return;
     }
 
@@ -83,9 +116,15 @@ async function handleHubSelect(interaction) {
     }
 
     if (choice === 'leaderboards') {
-      await interaction.editReply({
-        embeds: [baseEmbed({ title: '🏆 Leaderboards', description: 'Leaderboards are coming in a future update.', color: COLORS.neutral })],
-      });
+      const menu = new StringSelectMenuBuilder()
+        .setCustomId('hub:lbselect')
+        .setPlaceholder('Choose a leaderboard...')
+        .addOptions(
+          { label: 'Coins', value: 'coins', emoji: '💰' },
+          { label: 'War Simulator', value: 'war', emoji: '⚔️' },
+          { label: 'Chess', value: 'chess', emoji: '♟️' },
+        );
+      await interaction.editReply({ content: '🏆 Which leaderboard?', components: [new ActionRowBuilder().addComponents(menu)] });
       return;
     }
   } catch (err) {

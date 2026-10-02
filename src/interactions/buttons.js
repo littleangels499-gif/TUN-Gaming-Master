@@ -8,8 +8,9 @@ const { errorEmbed, successEmbed, baseEmbed, COLORS } = require('../utils/embeds
 const lotteryManager = require('../games/lottery/lotteryManager');
 const warSimulator = require('../simulation/warSimulator');
 const { SimulationWar, SimulationNation, LotteryTicket, SimulationAttack } = require('../database/models');
-const { ensureUser } = require('../utils/economy');
+const { ensureUser, adjustBalance } = require('../utils/economy');
 const { buildDailyClaimEmbed, buildBalanceEmbed } = require('../ui/economyUI');
+const minesweeperGame = require('../games/minesweeper/minesweeperGame');
 
 // Actions that reply ephemerally (only the clicker sees them). Everything
 // else replies publicly. Keep this in sync with the branches below.
@@ -55,12 +56,12 @@ async function handleButton(interaction) {
     return;
   }
 
-  const isLotteryBuy = namespace === 'lottery' && action === 'buy';
+  const updatesInPlace = (namespace === 'lottery' && action === 'buy') || (namespace === 'mine' && action === 'cell');
   const isEphemeral = EPHEMERAL_ACTIONS.has(`${namespace}:${action}`);
 
   try {
-    if (isLotteryBuy) {
-      // Keeps editing the SAME message in place, matching the old .update() behavior.
+    if (updatesInPlace) {
+      // Keeps editing the SAME message in place (the board/lottery embed).
       await interaction.deferUpdate();
     } else {
       await interaction.deferReply(isEphemeral ? { flags: MessageFlags.Ephemeral } : undefined);
@@ -77,6 +78,7 @@ async function handleButton(interaction) {
     if (namespace === 'chess') { await handleChessButton(interaction, action, rest); return; }
     if (namespace === 'lottery') { await handleLotteryButton(interaction, action, rest); return; }
     if (namespace === 'war') { await handleWarButton(interaction, action, rest); return; }
+    if (namespace === 'mine') { await handleMinesweeperButton(interaction, action, rest); return; }
   } catch (err) {
     await safeReplyError(interaction, err.message);
   }
@@ -182,6 +184,9 @@ async function handleChessButton(interaction, action, [gameId]) {
     const full = await sessionService.getSessionWithPlayers(id);
     full.result = { summary: `<@${interaction.user.id}> resigned.` };
     await full.save();
+    // The other seat (if any — vs-AI games have only one real player) wins.
+    const opponent = full.players.find((p) => p.userId !== interaction.user.id);
+    await sessionService.recordChessOutcome(id, { winnerUserId: opponent ? opponent.userId : null });
     await dashboardService.updateDashboard(interaction.client, full);
     await interaction.editReply({ embeds: [successEmbed('You resigned.')] });
     return;
@@ -259,6 +264,32 @@ async function handleWarButton(interaction, action, rest) {
     await interaction.editReply({ embeds: [baseEmbed({ title: '📜 Battle Log', description: lines.join('\n') })] });
     return;
   }
+}
+
+// ── Minesweeper ──────────────────────────────────────────────────────────
+async function handleMinesweeperButton(interaction, action, [sessionId, index]) {
+  if (action !== 'cell') return;
+  const id = Number(sessionId);
+  const cellIndex = Number(index);
+
+  const session = await sessionService.getSessionWithPlayers(id);
+  if (!session || session.gameType !== 'minesweeper') throw new Error('Game not found.');
+  if (session.hostId !== interaction.user.id) throw new Error('This is someone else\'s game.');
+  if (session.status !== 'active') throw new Error('This game has already ended.');
+
+  const state = minesweeperGame.reveal(session.state, cellIndex);
+  session.state = { ...state };
+
+  if (state.gameOver) {
+    session.status = 'finished';
+    const payout = state.won ? minesweeperGame.calculatePayout(state.bet, state.mineCount) : 0;
+    if (payout > 0) await adjustBalance(interaction.user.id, payout, 'minesweeper_win');
+    session.result = { summary: state.won ? `Cleared the board — won ${payout} coins.` : 'Hit a mine.' };
+  }
+  await session.save();
+
+  const { embeds, components } = dashboardService.renderSession(session);
+  await interaction.editReply({ embeds, components });
 }
 
 module.exports = { handleButton };

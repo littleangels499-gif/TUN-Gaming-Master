@@ -10,6 +10,7 @@ module.exports = (sequelize) => {
     hasResigned: { type: DataTypes.BOOLEAN, defaultValue: false },
     hasLeft: { type: DataTypes.BOOLEAN, defaultValue: false },
     score: { type: DataTypes.INTEGER, defaultValue: 0 },
+    outcome: { type: DataTypes.ENUM('win', 'loss', 'draw'), allowNull: true },
   }, {
     tableName: 'game_players',
     timestamps: true,

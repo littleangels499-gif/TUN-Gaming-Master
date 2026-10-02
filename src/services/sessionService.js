@@ -129,8 +129,25 @@ async function startVsAI(sessionId, userId, difficulty) {
   return session;
 }
 
+/**
+ * Records win/loss/draw on each player row of a finished chess game, so
+ * leaderboards can be built from GamePlayer without re-deriving outcomes.
+ * Safe to call at most once per session — subsequent calls are ignored.
+ */
+async function recordChessOutcome(sessionId, { winnerUserId = null, isDraw = false } = {}) {
+  const players = await GamePlayer.findAll({ where: { sessionId } });
+  if (players.some((p) => p.outcome)) return; // already recorded
+
+  for (const player of players) {
+    if (isDraw) player.outcome = 'draw';
+    else player.outcome = player.userId === winnerUserId ? 'win' : 'loss';
+    await player.save();
+  }
+}
+
 module.exports = {
   startVsAI,
+  recordChessOutcome,
   createSession,
   joinSession,
   setReady,

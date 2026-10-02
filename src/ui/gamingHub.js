@@ -12,7 +12,7 @@ function buildGamingHubEmbed() {
     description: [
       'Choose an activity below, or use the equivalent slash command any time.',
       '',
-      '**Games:** ♟️ Chess • 🎟️ Lottery • 🎁 Daily Coins',
+      '**Games:** ♟️ Chess • 🟪 Minesweeper • 🎟️ Lottery • 🎁 Daily Coins',
       '**Simulation:** ⚔️ War Simulator',
       '**Info:** 🏆 Leaderboards',
       '',
@@ -30,6 +30,7 @@ function buildGamingHubComponents() {
     .addOptions(
       { label: 'Chess', value: 'chess', emoji: '♟️', description: 'Play chess vs a friend or the AI' },
       { label: 'Lottery', value: 'lottery', emoji: '🎟️', description: 'Buy tickets, see the current pool' },
+      { label: 'Minesweeper', value: 'minesweeper', emoji: '🟪', description: 'Clear a 5x5 board, optionally for coins' },
       { label: 'Daily Coins', value: 'daily', emoji: '🎁', description: 'Claim your free daily coins' },
       { label: 'War Simulator', value: 'war_simulator', emoji: '⚔️', description: 'Manage your simulated nation' },
       { label: 'Leaderboards', value: 'leaderboards', emoji: '🏆', description: 'See top players' },

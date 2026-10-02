@@ -1,5 +1,6 @@
 const { buildChessEmbed, buildChessComponents } = require('../ui/chessUI');
 const { buildLotteryEmbed, buildLotteryComponents } = require('../ui/lotteryUI');
+const { buildMinesweeperEmbed, buildMinesweeperComponents } = require('../ui/minesweeperUI');
 
 /** Build { embeds, components } for a session, dispatching by gameType. */
 function renderSession(session) {
@@ -13,6 +14,13 @@ function renderSession(session) {
     return {
       embeds: [buildChessEmbed(session, whiteDisplay, blackDisplay)],
       components: buildChessComponents(session),
+    };
+  }
+
+  if (session.gameType === 'minesweeper') {
+    return {
+      embeds: [buildMinesweeperEmbed(session)],
+      components: buildMinesweeperComponents(session),
     };
   }
 
